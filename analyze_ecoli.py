@@ -5,7 +5,7 @@ from skimage.io import imread
 from skimage.measure import label, regionprops
 import scipy
 import matplotlib.pyplot as plt
-from analyze import analyze_ecoli, plot_intensity_scatter, extract_lysis_ratio, print_ratio, print_gaussian_ratio, print_gaussian_ratio_no_infect, print_gaussian_ratio_2D
+from functions import analyze_ecoli, plot_intensity_scatter, extract_lysis_ratio, print_ratio, print_gaussian_ratio, print_gaussian_ratio_no_infect, print_gaussian_ratio_2D
 from gaussian_model import extract_infected
 from sklearn import mixture
 

@@ -9,6 +9,8 @@ from gaussian_model import extract_infected, gaussian_classifier, gmm_2D
 
 plt.ioff()
 
+#analyzes a single frame of SLIP data
+#inputs: data_direc = path to 
 def analyze_slip_frame(data_direc, mask_direc, frame, confidence = 0.75, multiplier = 1.5):
 	mask_name = os.path.join(mask_direc, 'feature_1_frame_' + str(frame) + '.tif')
 	#Assume channel001 is FITC

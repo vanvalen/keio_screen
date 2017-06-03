@@ -27,3 +27,13 @@ def get_keio_names():
 def loc_to_strain(strains, plate, row, column):
 	plate = (plate-1)/2
 	return strains[plate, row-1, column-1]
+
+def pos_to_strain(strains, plate, pos):
+	alphabet = ['A','B','C','D','E','F','G','H']
+	chars = list(pos)
+	row = alphabet.index(chars[0]) + 1
+	print row
+	column = int(chars[1])
+	plate = (plate-1)/2
+	return strains[plate, row-1, column-1]
+

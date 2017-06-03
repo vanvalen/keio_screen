@@ -12,44 +12,68 @@ strain_matrix = get_keio_names()
 
 plt.ioff()
 
-#analyzes a single frame of SLIP data
-#inputs: data_direc = path to 
+'''
+Analyzes a single frame of SLIP data for one position
+INPUT: 
+data_direc = path to directory with EGFP and Cherry channels
+mask_direc = path to directory with masks for the position (root/mask/position/)
+frame = frame number (zero indexed)
+threshold = thresholding of neural net output
+multiplier = IQR multiplier for rejecting irregular cells/debris
+OUTPUT:
+mean FITC and mean Cherry intensities as a list
+'''
 def analyze_slip_frame(data_direc, mask_direc, frame, threshold = 0.75, multiplier = 1.5):
+	#define mask path
 	mask_name = os.path.join(mask_direc, 'feature_1_frame_' + str(frame) + '.tif')
-	#Assume channel001 is FITC
+	#define EGFP image path
 	FITC_name = os.path.join(data_direc, 'img_000000000_EGFP_' + str(frame).zfill(3) + '.tif')
+	#define cherry image path
 	cherry_name = os.path.join(data_direc, 'img_000000000_mCherry_' + str(frame).zfill(3) + '.tif')
+
+	#read in mask, threshold to make into binary mask
 	mask = np.float32(imread(mask_name))
 	mask = mask > confidence
 
+	#read in fluorescence images
 	FITC = np.float32(imread(FITC_name)) 
 	cherry = np.float32(imread(cherry_name))
 
+	#Normalize fluorescence images to mean pixel value of background
 	norm_FITC = FITC - np.mean(np.invert(mask)*FITC)
 	norm_cherry = cherry - np.mean(np.invert(mask)*cherry)
 
+	#Label all segmented regions
 	label_mask = label(mask)
 
+	#these will hold the region properties
 	mask_props = regionprops(label_mask, mask)
+	
+	#calculate the area in each segmented region
 	mask_area = []
 	for props in mask_props:
 		mask_area.append(props.area)
 
+	#calculate the eccentricity in each segmented region
 	mask_ecc = []
 	for props in mask_props:
 		mask_ecc.append(props.eccentricity)
 
+	#calculate interquartile range of area and eccentricity data sets
 	iqr_area = np.subtract(*np.percentile(mask_area,[75, 25]))
 	iqr_ecc = np.subtract(*np.percentile(mask_ecc,[75, 25]))
 
+	#calculate max and min cutoff for outlines of area and eccentricity data sets
 	ecc_max = np.percentile(mask_ecc, 75) + multiplier*iqr_ecc
 	ecc_min = np.percentile(mask_ecc, 25) - multiplier*iqr_ecc
 	area_max = np.percentile(mask_area, 75) + multiplier*iqr_area
 	area_min = np.percentile(mask_area, 25) - multiplier*iqr_area
 
+	#Calculate region properties for the fluorescence images
 	FITC_props = regionprops(label_mask, norm_FITC)
 	cherry_props = regionprops(label_mask, norm_cherry)
 
+	#Extract the outliers of the fluorescence data (and label it as infected)
 	mean_FITC = []
 	mean_cherry = []
 	for props in FITC_props:
@@ -66,12 +90,14 @@ def analyze_slip_frame(data_direc, mask_direc, frame, threshold = 0.75, multipli
 			continue
 		mean_cherry.append(props.mean_intensity)
 
+	#return list of mean fluorescence values
 	return zip(mean_FITC, mean_cherry)
+
 
 def analyze_slip_pos(infect_direc, control_direc, mask_direc, pos, num_pos = 25, threshold = 0.75, gaussian_confidence = 1.0, multiplier = 1.5, verbose=False, plot=False, save_direc = None):
 	data_direc_infect = os.path.join(infect_direc, pos)
 	data_direc_noinfect = os.path.join(control_direc, pos)
-	pos_mask_direc = os.path.join(mask_direc, pos + "_mask")
+	pos_mask_direc = os.path.join(mask_direc, pos)
 	FITC_mean = []
 	cherry_mean = []
 	FITC_control = []
@@ -97,7 +123,7 @@ def analyze_slip_plate(infect_direc, control_direc, mask_direc, plate_num, num_p
 	alphabet = ['A','B','C','D','E','F','G','H']
 	columns = range(1,13)
 	ratio_matrix = np.zeros([8, 12])
-	
+
 	for row in range(0,8):
 		for column in columns:
 			pos = alphabet[row] + str(column)

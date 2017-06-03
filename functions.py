@@ -14,7 +14,7 @@ plt.ioff()
 
 #analyzes a single frame of SLIP data
 #inputs: data_direc = path to 
-def analyze_slip_frame(data_direc, mask_direc, frame, confidence = 0.75, multiplier = 1.5):
+def analyze_slip_frame(data_direc, mask_direc, frame, threshold = 0.75, multiplier = 1.5):
 	mask_name = os.path.join(mask_direc, 'feature_1_frame_' + str(frame) + '.tif')
 	#Assume channel001 is FITC
 	FITC_name = os.path.join(data_direc, 'img_000000000_EGFP_' + str(frame).zfill(3) + '.tif')
@@ -68,7 +68,7 @@ def analyze_slip_frame(data_direc, mask_direc, frame, confidence = 0.75, multipl
 
 	return zip(mean_FITC, mean_cherry)
 
-def analyze_slip_pos(infect_direc, control_direc, mask_direc, pos, num_pos = 25, confidence = 0.75, gaussian_confidence = 1.0, multiplier = 1.5, verbose=False, plot=False, save_direc = None):
+def analyze_slip_pos(infect_direc, control_direc, mask_direc, pos, num_pos = 25, threshold = 0.75, gaussian_confidence = 1.0, multiplier = 1.5, verbose=False, plot=False, save_direc = None):
 	data_direc_infect = os.path.join(infect_direc, pos)
 	data_direc_noinfect = os.path.join(control_direc, pos)
 	pos_mask_direc = os.path.join(mask_direc, pos + "_mask")
@@ -92,6 +92,19 @@ def analyze_slip_pos(infect_direc, control_direc, mask_direc, pos, num_pos = 25,
 		strain = pos_to_strain(strain_matrix, pos)
 
 	return extract_lysis_ratio(FITC_mean, cherry_mean, FITC_control, cherry_control, gaussian_confidence, verbose, plot, save_direc, strain)
+
+def analyze_slip_plate(infect_direc, control_direc, mask_direc, plate_num, num_pos = 25, threshold=0.75, gaussian_confidence = 0.99999, multiplier = 1.5, verbose=False, plot=False, save_direc=None):
+	alphabet = ['A','B','C','D','E','F','G','H']
+	columns = range(1,13)
+	ratio_matrix = np.zeros([8, 12])
+	
+	for row in range(0,8):
+		for column in columns:
+			pos = alphabet[row] + str(column)
+			print "Analyzing Plate #" + str(plate_num)
+			ratio_matrix[row, column] = analyze_slip_pos(infect_direc, control_direc, mask_direc, pos, num_pos, threshold, gaussian_confidence, multiplier, verbose, plot, save_direc)
+	
+	return ratio_matrix
 
 def extract_lysis_ratio(FITC_mean, cherry_mean, FITC_control, cherry_control, confidence, verbose = False, plot = False, plot_save_direc=None, strain=None):
 	FITC_mean_np = np.asarray(FITC_mean)

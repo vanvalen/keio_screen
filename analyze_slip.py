@@ -12,6 +12,7 @@ from sklearn import mixture
 infect_direc = '/Users/nicolasquach/Documents/stanford/covert_lab/microscope/5.15.17_SLIP/infection/'
 control_direc = '/Users/nicolasquach/Documents/stanford/covert_lab/microscope/5.15.17_SLIP/no_infection/'
 mask_direc = '/Users/nicolasquach/Documents/stanford/covert_lab/microscope/5.15.17_SLIP/masks/'
+control_mask_direc = '/Users/nicolasquach/Documents/stanford/covert_lab/microscope/5.15.17_SLIP/control_masks/'
 save_direc = '/Users/nicolasquach/Documents/stanford/covert_lab/deep_learning/plots/5.22.17/'
 pos = 'A7'
 

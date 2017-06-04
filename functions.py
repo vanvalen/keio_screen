@@ -33,11 +33,16 @@ def analyze_slip_frame(data_direc, mask_direc, frame, threshold = 0.75, multipli
 
 	#read in mask, threshold to make into binary mask
 	mask = np.float32(imread(mask_name))
-	mask = mask > confidence
+	mask = mask > threshold
 
 	#read in fluorescence images
 	FITC = np.float32(imread(FITC_name)) 
 	cherry = np.float32(imread(cherry_name))
+
+	#Crop side artifacts out:
+	mask = mask[:,50:1180]
+	FITC = FITC[:,50:1180]
+	cherry = cherry[:,50:1180]
 
 	#Normalize fluorescence images to mean pixel value of background
 	norm_FITC = FITC - np.mean(np.invert(mask)*FITC)

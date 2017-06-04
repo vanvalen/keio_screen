@@ -28,6 +28,7 @@ def loc_to_strain(strains, plate, row, column):
 	plate = (plate-1)/2
 	return strains[plate, row-1, column-1]
 
+#Converts a position (like 'A7') into a strain name
 def pos_to_strain(strains, plate, pos):
 	alphabet = ['A','B','C','D','E','F','G','H']
 	chars = list(pos)

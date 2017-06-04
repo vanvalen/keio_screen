@@ -93,11 +93,30 @@ def analyze_slip_frame(data_direc, mask_direc, frame, threshold = 0.75, multipli
 	#return list of mean fluorescence values
 	return zip(mean_FITC, mean_cherry)
 
+'''
+Analyzes a single well of SLIP data (all images in A7 for example)
+Pools all mean fluorescence data for one position
 
-def analyze_slip_pos(infect_direc, control_direc, mask_direc, pos, num_pos = 25, threshold = 0.75, gaussian_confidence = 1.0, multiplier = 1.5, verbose=False, plot=False, save_direc = None):
+INPUTS:
+infect_direc = path to data from infection
+control_direc = path to data from negative control
+mask_direc = path to masks for all positions
+pos = position (e.g. 'A7')
+num_pos = number of positions per well
+threshold = probability threshold for neural net output
+gaussian_confidence = confidence of infection predictions
+multiplier = multiplier of IQR
+verbose = if you want it to write you things
+plot = if you want it to draw you things
+save_direc = where you want to save the plots
+OUTPUT:
+lysis ratio
+'''
+def analyze_slip_pos(infect_direc, control_direc, mask_direc, control_mask_direc, pos, num_pos = 25, threshold = 0.75, gaussian_confidence = 1.0, multiplier = 1.5, verbose=False, plot=False, save_direc = None):
 	data_direc_infect = os.path.join(infect_direc, pos)
 	data_direc_noinfect = os.path.join(control_direc, pos)
 	pos_mask_direc = os.path.join(mask_direc, pos)
+	pos_control_mask_direc = os.path.join(control_mask_direc, pos)
 	FITC_mean = []
 	cherry_mean = []
 	FITC_control = []
@@ -106,7 +125,7 @@ def analyze_slip_pos(infect_direc, control_direc, mask_direc, pos, num_pos = 25,
 		print "Analyzing Position " + pos + " Frame " + str(i)
 		means = analyze_slip_frame(data_direc_infect, pos_mask_direc, i, confidence, multiplier)
 		means = zip(*means)
-		means_control = analyze_slip_frame(data_direc_noinfect, pos_mask_direc, i, confidence, multiplier)
+		means_control = analyze_slip_frame(data_direc_noinfect, pos_control_mask_direc, i, confidence, multiplier)
 		means_control = zip(*means_control)
 		FITC_mean = FITC_mean+list(means[0])
 		cherry_mean = cherry_mean+list(means[1])
@@ -119,7 +138,23 @@ def analyze_slip_pos(infect_direc, control_direc, mask_direc, pos, num_pos = 25,
 
 	return extract_lysis_ratio(FITC_mean, cherry_mean, FITC_control, cherry_control, gaussian_confidence, verbose, plot, save_direc, strain)
 
-def analyze_slip_plate(infect_direc, control_direc, mask_direc, plate_num, num_pos = 25, threshold=0.75, gaussian_confidence = 0.99999, multiplier = 1.5, verbose=False, plot=False, save_direc=None):
+'''
+Analyzes a whole plate of SLIP data
+INPUTS:
+infect_direc = path to directory with infection data (all positions, all frames)
+control_direc = path to directory with control data (all positions, all frames)
+mask_direc = path to directory with infection masks (all positions, all frames)
+control_mask_direc = path to directory with control masks (all positions, frames)
+plate_num = number of Keio Plate
+num_pos = number of frames per positions
+threshold = threshold for neural net output
+gaussian_confidence = threshold for gaussian classifier
+multiplier = IQR multiplier for rejecting data
+verbose = if you want it to write things
+plot = if you want it to draw things
+save_direc = where you want it to save the drawings.
+'''
+def analyze_slip_plate(infect_direc, control_direc, mask_direc, control_mask_direc, plate_num, num_pos = 25, threshold=0.75, gaussian_confidence = 0.99999, multiplier = 1.5, verbose=False, plot=False, save_direc=None):
 	alphabet = ['A','B','C','D','E','F','G','H']
 	columns = range(1,13)
 	ratio_matrix = np.zeros([8, 12])
@@ -128,10 +163,23 @@ def analyze_slip_plate(infect_direc, control_direc, mask_direc, plate_num, num_p
 		for column in columns:
 			pos = alphabet[row] + str(column)
 			print "Analyzing Plate #" + str(plate_num)
-			ratio_matrix[row, column] = analyze_slip_pos(infect_direc, control_direc, mask_direc, pos, num_pos, threshold, gaussian_confidence, multiplier, verbose, plot, save_direc)
+			ratio_matrix[row, column] = analyze_slip_pos(infect_direc, control_direc, mask_direc, control_mask_direc, pos, num_pos, threshold, gaussian_confidence, multiplier, verbose, plot, save_direc)
 	
 	return ratio_matrix
 
+'''
+Given fluorescence means of infection and control wells, computes lysis ratio
+INPUTS:
+FITC_mean = list of mean FITC fluorescence for infection
+cherry_mean = list of mean Cherry fluorescence for infection
+FITC_control = list of mean FITC fluorescence for control
+cherry_control = list of mean Cherry fluorescence for control
+confidence = confidence cutoff for gaussian classifier
+verbose = if you want it to write things
+plot = if you want it to draw dots
+plot_save_direc = where you want to save the scattergram
+strain = strain being analyzed
+'''
 def extract_lysis_ratio(FITC_mean, cherry_mean, FITC_control, cherry_control, confidence, verbose = False, plot = False, plot_save_direc=None, strain=None):
 	FITC_mean_np = np.asarray(FITC_mean)
 	cherry_mean_np = np.asarray(cherry_mean)

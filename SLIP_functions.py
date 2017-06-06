@@ -19,6 +19,7 @@ def segment_SLIP(data_direc, control_direc, mask_direc, control_mask_direc):
 			current_control_direc = os.path.join(control_direc, pos)
 			current_mask_direc = os.path.join(mask_direc, pos)
 			current_control_mask_direc = os.path.join(control_mask_direc, pos)
+			#make position directory for masks if necessary
 			try:
 				os.stat(current_mask_direc)
 			except:
@@ -32,19 +33,17 @@ def segment_SLIP(data_direc, control_direc, mask_direc, control_mask_direc):
 			segment_SLIP(current_control_direc, current_control_mask_direc)
 			
 def segment_SLIP_plate(data_direc, mask_direc):
-	direc_name = current_data_direc
 	data_location = data_direc
-	#mask_location = os.path.join(direc_name, 'masks')
 	phase_location = mask_direc
 
 	phase_channel_names = ['Phase']#['channel000']
 
-	trained_network_phase_directory = "/home/nquach/DeepCell2/trained_networks/ecoli/ecoli_all/"   #"/home/nquach/DeepCell2/prototypes/trained_networks/"
+	trained_network_phase_directory = "/home/nquach/DeepCell2/trained_networks/ecoli/ecoli_all/"   
 
 	phase_prefix = "2016-07-20_ecoli_all_31x31_bn_feature_net_31x31_"
 	#"2017-02-12_ecoli_90x_31x31_ecoli_90x_feature_net_31x31_"
 
-	win_phase = 15
+	win_phase = 30
 
 	image_size_x, image_size_y = get_image_sizes(data_location, phase_channel_names)
 	image_size_x /= 2

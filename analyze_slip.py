@@ -8,15 +8,24 @@ import matplotlib.pyplot as plt
 from analyze import analyze_slip_pos
 from gaussian_model import extract_infected
 from sklearn import mixture
+from keio_names import get_keio_names, loc_to_strain, pos_to_strain
 
 infect_direc = '/Users/nicolasquach/Documents/stanford/covert_lab/microscope/5.15.17_SLIP/infection/'
 control_direc = '/Users/nicolasquach/Documents/stanford/covert_lab/microscope/5.15.17_SLIP/no_infection/'
 mask_direc = '/Users/nicolasquach/Documents/stanford/covert_lab/microscope/5.15.17_SLIP/masks/'
 control_mask_direc = '/Users/nicolasquach/Documents/stanford/covert_lab/microscope/5.15.17_SLIP/control_masks/'
 save_direc = '/Users/nicolasquach/Documents/stanford/covert_lab/deep_learning/plots/5.22.17/'
-pos = 'A7'
+#pos = 'A7'
+plate_num = 9
+
+plate = (plate_num-1)/2
 
 gaussian_confidence = 0.99999
 
-analyze_slip_pos(infect_direc, control_direc, save_direc, mask_direc, pos, num_pos = 25, confidence = 0.75, gaussian_confidence = gaussian_confidence, multiplier = 1.5)
+ratio_matrix = analyze_slip_plate(infect_direc, control_direc, save_direc, mask_direc, pos, num_pos = 25, confidence = 0.75, gaussian_confidence = gaussian_confidence, multiplier = 1.5)
 
+ratio_list = list(ratio_matrix.flatten())
+
+strain_matrix = get_keio_names()
+
+strain_list = list(strain_matrix[plate,:,:].flatten())

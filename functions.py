@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from gaussian_model import extract_infected, gaussian_classifier, gmm_2D
 from keio_names import get_keio_names, pos_to_strain
 
+#Get matrix of all keio strains
 strain_matrix = get_keio_names()
 
 plt.ioff()

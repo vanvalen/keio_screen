@@ -7,7 +7,7 @@ import openpyxl as xls
 def get_keio_names():
 
 	#Define path to keio_map.xlsx file
-	data_direc = '/Users/nicolasquach/Documents/stanford/covert_lab/deep_learning/keio_screen/'
+	data_direc = '/home/vanvalen/keio_screen/'
 	data_path = os.path.join(data_direc,'keio_map.xlsx')
 
 	#Load excel sheet
@@ -36,8 +36,10 @@ def pos_to_strain(strains, plate, pos):
 	alphabet = ['A','B','C','D','E','F','G','H']
 	chars = list(pos)
 	row = alphabet.index(chars[0]) + 1
-	print row
-	column = int(chars[1])
+	if len(chars) == 2:
+		column = 13 - int(chars[1])
+	if len(chars) == 3:
+		column = 13 - int(chars[1] + chars[2])
 	plate = (plate-1)/2
 	return strains[plate, row-1, column-1]
 

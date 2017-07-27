@@ -16,7 +16,13 @@ import pandas as pd
 import pymc3 as pm
 
 #Define root directory path
-for root_direc in ['/home/vanvalen/Data/keio_screen/07.11.2017/keio_7/', '/home/vanvalen/Data/keio_screen/07.11.2017/keio_11/', '/home/vanvalen/Data/keio_screen/07.11.2017/keio_13/']:
+
+#direc = "/home/vanvalen/Data/keio_screen/07.11.2017/"
+#data_7112017 = [os.path.join(direc,'keio_7'), os.path.join(direc, 'keio_11'), os.path.join(direc, 'keio_13')] 
+
+direc = "/media/vanvalen/fe0ceb60-f921-4184-a484-b7de12c1eea6/keio_screen/07.13.2017/"
+data_7132017 = [os.path.join(direc,'keio_1'), os.path.join(direc,'keio_3'), os.path.join(direc,'keio_5'), os.path.join(direc,'keio_9')]
+for root_direc in data_7132017:
 	print root_direc
 	#Define directory path to infection data (all positions)
 	data_direc = os.path.join(root_direc, 'data')

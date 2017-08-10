@@ -146,7 +146,7 @@ def analyze_well(data_direc, mask_direc, pos_list, panorama = True):
 		list_of_screened_masks = screen_masks(list_of_masks)
 
 		# Check the stitching parameters - if off, use pre computed stitching parameters
-		mask_pan, h, v = merge_images(list_of_masks)
+		mask_pan, h, v = merge_images_v2(list_of_masks)
 
 		h_pre = [490, 498, 491, 499, 490, 499, 10, 11]
 		v_pre = [9, 9, 9, 9, 9, 8, 595, 596]
@@ -160,10 +160,10 @@ def analyze_well(data_direc, mask_direc, pos_list, panorama = True):
 			h = h_pre
 			v = v_pre
 
-		mask_panorama = merge_images(list_of_screened_masks, h = h, v = v)[0]
-		phase_panorama = merge_images(phase_list, h = h, v = v)[0]
-		fitc_panorama = merge_images(FITC_list, h = h, v = v)[0]
-		cherry_panorama = merge_images(cherry_list, h = h, v = v)[0]
+		mask_panorama = merge_images_v2(list_of_screened_masks, h = h, v = v)[0]
+		phase_panorama = merge_images_v2(phase_list, h = h, v = v)[0]
+		fitc_panorama = merge_images_v2(FITC_list, h = h, v = v)[0]
+		cherry_panorama = merge_images_v2(cherry_list, h = h, v = v)[0]
 
 		# Collect data points
 		mean_FITC = []
@@ -482,7 +482,79 @@ def merge_images(img_list, h = None, v = None):
 	
 	return temp5, h, v
 
+def merge_images_v2(img_list, h = None, v = None):
+	if is_square(len(img_list)) is True:
+		num = np.int(math.sqrt(len(img_list))+0.5)
 
+		cols = []
+		for col in xrange(num):
+			imgs_to_merge = []
+			for row in xrange(num):
+				imgs_to_merge += [img_list[row + col*num]]
+
+			if col % 2 == 1:
+				imgs_to_merge.reverse()
+
+			cols += [imgs_to_merge]
+
+		is_h_none = h is None
+
+		if is_h_none is True:
+			h = []
+			v = []
+			for col in cols:
+				for row in xrange(num-1):
+					h_temp, v_temp = cross_corr(col[row], col[row+1])
+					h += [h_temp]
+					v += [v_temp]
+
+		# Merge rows using the offsets
+		merged_cols = []
+		for j in xrange(num):
+			merged_col = cols[j][0]
+			h_temp = h[j*(num-1):j*(num-1) + num-1]
+			v_temp = v[j*(num-1):j*(num-1) + num-1]
+
+			for row in xrange(num-1):
+				merged_col = np.concatenate((cols[j][row+1][:-h_temp[row],:-np.sum(v_temp[0:row+1])], merged_col[:,v_temp[row]:]), axis = 0)
+			merged_cols += [merged_col]
+
+		xmins = [col.shape[0] for col in merged_cols]
+		ymins = [col.shape[1] for col in merged_cols]
+
+		xmin = min(xmins)
+		ymin = min(ymins)
+
+		print xmins, ymins
+
+		merged_cols_v2 = [merged_col[0:xmin,0:ymin] for merged_col in merged_cols]
+		merged_cols = merged_cols_v2
+
+		if is_h_none is True:
+			for j in xrange(num-1):
+				h_temp, v_temp = cross_corr(merged_cols[j+1], merged_cols[j])
+				h +=[h_temp]
+				v +=[v_temp]
+
+		# Merge the merged rows by column together using the offsets
+		merged = merged_cols[0]
+		h_temp = h[num*(num-1):]
+		v_temp = v[num*(num-1):]
+
+		print h,v
+		print h_temp, v_temp
+		print merged.shape
+		for j in xrange(num-1):
+			print j
+			print merged_cols[j+1][np.sum(h_temp[0:j+1]):,:v_temp[j]].shape
+			print merged[:-h_temp[j],:].shape
+			merged = np.concatenate((merged_cols[j+1][np.sum(h_temp[0:j+1]):,:v_temp[j]],merged[:-h_temp[j],:]), axis = 1)
+			print merged.shape
+
+		return merged, h, v
+
+	else:
+		print "Not a square grid!"
 
 
 

@@ -2,6 +2,7 @@
 import numpy as np 
 import os
 import tifffile as tiff
+import math
 from skimage.io import imread
 from skimage.measure import label, regionprops
 import scipy
@@ -23,6 +24,88 @@ def cross_corr(im0, im1):
 	ir = abs(ifft2((f0 * f1.conjugate()) / (abs(f0) * abs(f1))))
 	t0, t1 = np.unravel_index(np.argmax(ir), shape)
 	return t0, t1
+
+def is_square(integer):
+	root = math.sqrt(integer)
+	if int(root + 0.5) ** 2 == integer:
+		return True
+	else:
+		return False
+
+def merge_images_v2(img_list, h = None, v = None):
+	if is_square(len(img_list)) is True:
+		num = np.int(math.sqrt(len(img_list))+0.5)
+
+		cols = []
+		for col in xrange(num):
+			imgs_to_merge = []
+			for row in xrange(num):
+				imgs_to_merge += [img_list[row + col*num]]
+
+			if col % 2 == 1:
+				imgs_to_merge.reverse()
+
+			cols += [imgs_to_merge]
+
+		is_h_none = h is None
+
+		if is_h_none is True:
+			h = []
+			v = []
+			for col in cols:
+				for row in xrange(num-1):
+					h_temp, v_temp = cross_corr(col[row], col[row+1])
+					h += [h_temp]
+					v += [v_temp]
+
+		# Merge rows using the offsets
+		merged_cols = []
+		for j in xrange(num):
+			merged_col = cols[j][0]
+			h_temp = h[j*(num-1):j*(num-1) + num-1]
+			v_temp = v[j*(num-1):j*(num-1) + num-1]
+
+			for row in xrange(num-1):
+				merged_col = np.concatenate((cols[j][row+1][:-h_temp[row],:-np.sum(v_temp[0:row+1])], merged_col[:,v_temp[row]:]), axis = 0)
+			merged_cols += [merged_col]
+
+		xmins = [col.shape[0] for col in merged_cols]
+		ymins = [col.shape[1] for col in merged_cols]
+
+		xmin = min(xmins)
+		ymin = min(ymins)
+
+		print xmins, ymins
+
+		merged_cols_v2 = [merged_col[0:xmin,0:ymin] for merged_col in merged_cols]
+		merged_cols = merged_cols_v2
+
+		if is_h_none is True:
+			for j in xrange(num-1):
+				h_temp, v_temp = cross_corr(merged_cols[j+1], merged_cols[j])
+				h +=[h_temp]
+				v +=[v_temp]
+
+		# Merge the merged rows by column together using the offsets
+		merged = merged_cols[0]
+		h_temp = h[num*(num-1):]
+		v_temp = v[num*(num-1):]
+
+		print h,v
+		print h_temp, v_temp
+		print merged.shape
+		for j in xrange(num-1):
+			print j
+			print merged_cols[j+1][np.sum(h_temp[0:j+1]):,:v_temp[j]].shape
+			print merged[:-h_temp[j],:].shape
+			merged = np.concatenate((merged_cols[j+1][np.sum(h_temp[0:j+1]):,:v_temp[j]],merged[:-h_temp[j],:]), axis = 1)
+			print merged.shape
+
+		return merged, h, v
+
+	else:
+		print "Not a square grid!"
+
 
 def merge_images(img_list, h = None, v = None):
 	if h is None:
@@ -91,7 +174,7 @@ def merge_images(img_list, h = None, v = None):
 	return temp5, h, v
 
 #Define root directory path
-root_direc = '/home/vanvalen/Data/keio_screen/07.06.2017/keio_9/'
+root_direc = '/media/vanvalen/fe0ceb60-f921-4184-a484-b7de12c1eea6/keio_screen/08.03.2017/keio9_1/'
 
 #Define directory path to infection data (all positions)
 data_direc = os.path.join(root_direc, 'data')
@@ -111,14 +194,14 @@ col_control = [12]
 row_data = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
 col_data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 
-pos_list = range(9)
+pos_list = range(25)
 list_of_masks = []
 FITC_list = []
 cherry_list = []
 phase_list = []
 
-mask_direc_well = os.path.join(mask_direc, 'G9')
-data_direc_well = os.path.join(data_direc, 'G9')
+mask_direc_well = os.path.join(mask_direc, 'A6')
+data_direc_well = os.path.join(data_direc, 'A6')
 
 for pos in pos_list:
 	mask_name = os.path.join(mask_direc_well, 'feature_1_frame_' + str(pos) + '.tif')
@@ -139,16 +222,18 @@ for pos in pos_list:
 	cherry_list.append(cherry_norm[40:-40, 140:-140])
 	phase_list.append(phase[40:-40, 140:-140])
 
-mask_panorama, h, v = merge_images(list_of_masks)
+# mask_panorama, h, v = merge_images(list_of_masks)
+mask_panorama, h, v = merge_images_v2(list_of_masks)
+
 tiff.imsave('mask_panorama.tif', mask_panorama)
 
-phase_panorama = merge_images(phase_list,  h = h, v = v)[0]
+phase_panorama = merge_images_v2(phase_list,  h = h, v = v)[0]
 tiff.imsave('phase_panorama.tif', phase_panorama)
 
-fitc_panorama = merge_images(FITC_list, h = h, v = v)[0]
+fitc_panorama = merge_images_v2(FITC_list, h = h, v = v)[0]
 tiff.imsave('fitc_panorama.tif', fitc_panorama)
 
-cherry_panorama = merge_images(cherry_list, h = h, v = v)[0]
+cherry_panorama = merge_images_v2(cherry_list, h = h, v = v)[0]
 tiff.imsave('cherry_panorama.tif', cherry_panorama)
 
 	# phase_names = ['temp.tif', 'temp2.tif', 'temp3.tif', 'temp4.tif', 'temp5.tif']

@@ -11,12 +11,14 @@ from skimage.io import imread
 from scipy.stats import mode
 from skimage.measure import label, regionprops
 import scipy
-from scipy import stats
+from scipy import stats, ndimage
+import matplotlib
+matplotlib.pyplot.switch_backend('agg')
 from matplotlib import pyplot as plt
 import seaborn as sns
 import pymc3 as pm
 import math
-
+from sklearn import mixture
 
 def segment_SLIP(data_direc, mask_direc, alphabet = ['A','B','C','D','E','F','G','H'], columns = range(1,13)):
 
@@ -55,7 +57,7 @@ def segment_SLIP_plate(data_direc, mask_direc):
 	image_size_y /= 2
 
 	list_of_phase_weights = []
-	for j in xrange(3):
+	for j in xrange(1):
 		phase_weights = os.path.join(trained_network_phase_directory,  phase_prefix + str(j) + ".h5")
 		list_of_phase_weights += [phase_weights]
 
@@ -63,7 +65,7 @@ def segment_SLIP_plate(data_direc, mask_direc):
 		list_of_weights = list_of_phase_weights, image_size_x = image_size_x, image_size_y = image_size_y, 
 		win_x = win_phase, win_y = win_phase, std = False, split = False)
 
-def screen_masks(list_of_masks, confidence = 0.75, area_filter = True, eccen_filter = True, minor_axis_filter = False, major_axis_filter = False, solidity_filter = True):
+def screen_masks(list_of_masks, confidence = 0.75, debris_size = 20, area_filter = True, eccen_filter = True, minor_axis_filter = False, major_axis_filter = False, solidity_filter = True):
 	mask_area = []
 	mask_ecc = []
 	mask_minor_axis = []
@@ -77,18 +79,19 @@ def screen_masks(list_of_masks, confidence = 0.75, area_filter = True, eccen_fil
 		mask_props = regionprops(label_mask, mask)
 
 		for prop in mask_props:
-			mask_area.append(prop.area)
+			if prop.area > debris_size:
+				mask_area.append(prop.area)
 			mask_ecc.append(prop.eccentricity)
 			mask_minor_axis.append(prop.minor_axis_length)
 			mask_major_axis.append(prop.major_axis_length)
 			mask_solidity.append(prop.solidity)
 
-	area_limit = [np.mean(mask_area) - np.std(mask_area), np.mean(mask_area) + np.std(mask_area)]
+	area_limit = [np.mean(mask_area) - np.std(mask_area), np.mean(mask_area) + 2*np.std(mask_area)]
 	ecc_limit = [np.mean(mask_ecc) - np.std(mask_ecc), np.mean(mask_ecc) + np.std(mask_ecc)]
 	minor_limit = [np.mean(mask_minor_axis) - np.std(mask_minor_axis), np.mean(mask_minor_axis) + np.std(mask_minor_axis)]
 	major_limit = [np.mean(mask_major_axis) - np.std(mask_major_axis), np.mean(mask_major_axis) + np.std(mask_major_axis)]
 	solidity_limit = [np.mean(mask_solidity) - np.std(mask_solidity), np.mean(mask_solidity) + np.std(mask_solidity)]
-	
+
 	for mask in list_of_masks:
 		mask = mask > confidence
 		label_mask = label(mask)
@@ -113,8 +116,19 @@ def screen_masks(list_of_masks, confidence = 0.75, area_filter = True, eccen_fil
 
 	return list_of_screened_masks
 
-def background_subtraction(image):
-	background = np.median(image.flatten())
+
+def background_subtraction(image, median = True, mask = None, confidence = 0.75):
+	if mask is None:
+		if median:
+			background = np.median(image.flatten())
+		else:
+			avg_kernel = np.ones((61,61))
+			background = ndimage.convolve(image, avg_kernel)/avg_kernel.size
+	else:
+		if median:
+			mask = mask > confidence
+			background = np.median(image[mask == 0].flatten())
+
 	return image - background
 
 def analyze_well(data_direc, mask_direc, pos_list, panorama = True):
@@ -135,21 +149,24 @@ def analyze_well(data_direc, mask_direc, pos_list, panorama = True):
 			cherry = np.float32(imread(cherry_name))[40:-40, 140:-140]
 			phase = np.float32(imread(phase_name))[40:-40, 140:-140]
 
-			FITC_norm = background_subtraction(FITC)
-			cherry_norm = background_subtraction(cherry)
+			FITC = background_subtraction(FITC, mask = mask)
+			cherry = background_subtraction(cherry, mask = mask)
 
 			list_of_masks.append(mask)
-			FITC_list.append(FITC_norm)
-			cherry_list.append(cherry_norm)
+			FITC_list.append(FITC)
+			cherry_list.append(cherry)
 			phase_list.append(phase)
-
-		list_of_screened_masks = screen_masks(list_of_masks)
 
 		# Check the stitching parameters - if off, use pre computed stitching parameters
 		mask_pan, h, v = merge_images_v2(list_of_masks)
 
-		h_pre = [490, 498, 491, 499, 490, 499, 10, 11]
-		v_pre = [9, 9, 9, 9, 9, 8, 595, 596]
+		if len(pos_list) == 9:
+			h_pre = [490, 498, 491, 499, 490, 499, 10, 11]
+			v_pre = [9, 9, 9, 9, 9, 8, 595, 596]
+
+		if len(pos_list) == 25:
+			h_pre = [491, 497, 493, 493, 492, 497, 494, 492, 491, 497, 493, 493, 492, 497, 493, 492, 491, 497, 493, 492, 10, 11, 11, 11]
+			v_pre = [10, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 591, 610, 585, 596]
 
 		replace = False
 		for h_c, h_p, v_c, v_p in zip(h, h_pre, v, v_pre):
@@ -160,10 +177,26 @@ def analyze_well(data_direc, mask_direc, pos_list, panorama = True):
 			h = h_pre
 			v = v_pre
 
-		mask_panorama = merge_images_v2(list_of_screened_masks, h = h, v = v)[0]
+		mask_panorama = merge_images_v2(list_of_masks, h = h, v = v)[0]
+		mask_panorama = screen_masks([mask_panorama])[0]
+
 		phase_panorama = merge_images_v2(phase_list, h = h, v = v)[0]
+
 		fitc_panorama = merge_images_v2(FITC_list, h = h, v = v)[0]
+
 		cherry_panorama = merge_images_v2(cherry_list, h = h, v = v)[0]
+
+		# Save panoramic images
+		mask_name = os.path.join(mask_direc, 'panorama_mask.tif')
+		phase_name = os.path.join(mask_direc, 'panorama_phase.tif')
+		fitc_name = os.path.join(mask_direc, 'panorama_fitc.tif')
+		cherry_name = os.path.join(mask_direc, 'panorama_cherry.tif')
+
+		tiff.imsave(mask_name, np.float32(mask_panorama))
+		tiff.imsave(phase_name, np.float32(phase_panorama))
+		tiff.imsave(fitc_name, np.float32(fitc_panorama))
+		tiff.imsave(cherry_name, np.float32(cherry_panorama))
+
 
 		# Collect data points
 		mean_FITC = []
@@ -261,7 +294,7 @@ def plot_slip_well(fitc_dict, cherry_dict, well, title, infected_cells = None,):
 
 	return fig
 
-def plot_slip_wells(fitc_dict, cherry_dict, wells, titles, infected_cells = None,):
+def plot_slip_wells(fitc_dict, cherry_dict, wells, titles, infected_cells = None, plate_number = None, save_direc = '/home/vanvalen/keio_screen/scatter_plots/', save_fig = False):
 	fig, axes = plt.subplots(8,12, figsize = (4*12, 4*8))
 
 	xmax = 0
@@ -276,15 +309,6 @@ def plot_slip_wells(fitc_dict, cherry_dict, wells, titles, infected_cells = None
 		else:
 			fitc_list = np.array(fitc_dict[well])[infected_cells[well]]
 			cherry_list = np.array(cherry_dict[well])[infected_cells[well]]
-	
-		# if max(fitc_list) > xmax:
-		# 	xmax = max(fitc_list)
-		# if min(fitc_list) < xmin:
-		# 	xmin = min(fitc_list)
-		# if max(cherry_list) > ymax:
-		# 	ymax = max(cherry_list)
-		# if min(cherry_list) < ymin:
-		# 	ymin = min(cherry_list)
 
 	for well, title in zip(wells, titles):
 		if infected_cells is None:
@@ -306,11 +330,231 @@ def plot_slip_wells(fitc_dict, cherry_dict, wells, titles, infected_cells = None
 			axes[row,column].plot(fitc_list, cherry_list,'o')
 			axes[row,column].set_xlim([min(fitc_list), max(fitc_list)])
 			axes[row,column].set_ylim([min(cherry_list), max(cherry_list)]) 
-			axes[row,column].set_xlabel('FITC Pixel Intensity')
-			axes[row,column].set_ylabel('Cherry Pixel Intensity')
+			axes[row,column].set_xlabel('FITC Pixel Intensity (au)')
+			axes[row,column].set_ylabel('Cherry Pixel Intensity (au)')
 			axes[row,column].set_title(title)
 	plt.tight_layout()
+
+	if save_fig:
+		figure_name = os.path.join(save_direc, 'raw_data_plate_' + str(plate_number) + '.pdf')
+		fig.savefig(figure_name, bbox_inches = 'tight')
 	return fig, axes
+
+def classify_infections_gmm(fitc_dict, cherry_dict, wells, classification_wells = None):
+	fitc_list = []
+	cherry_list = []
+
+	if classification_wells is None:
+		classification_wells = wells
+
+	for well in classification_wells:
+		fitc_list += fitc_dict[well]
+		cherry_list += cherry_dict[well]
+	data = np.stack((fitc_list,cherry_list), axis = 1)
+
+	gmm = mixture.GMM(n_components = 3).fit(data)
+
+	#identify populations
+	means = gmm.means_
+
+	fitc_means = np.array([mean[0] for mean in means])
+	cherry_means = np.array([mean[1] for mean in means])
+	index_list = [0,1,2]
+	lytic_id = np.argmax(fitc_means)
+	lysogenic_id = np.argmax(cherry_means)
+
+	index_list.remove(lytic_id)
+	index_list.remove(lysogenic_id)
+	uninfected_id = index_list[0]
+
+	lytic_dict = {}
+	lysogenic_dict = {}
+	uninfected_dict = {}
+
+	for well in wells:
+		fitc_list = np.array(fitc_dict[well])
+		cherry_list = np.array(cherry_dict[well])
+
+		data_well = np.stack((fitc_list, cherry_list), axis = 1)
+		probs = gmm.predict_proba(data_well)
+
+		lytic_dict[well] = []
+		lysogenic_dict[well] = []
+		uninfected_dict[well] = []
+
+		for j in xrange(data_well.shape[0]):
+
+			if probs[j][lytic_id] > 0.95:
+				if data_well[j,0] > means[uninfected_id][0]:
+					lytic_dict[well] += [data_well[j,:]]
+				else:
+					uninfected_dict[well] += [data_well[j,:]]
+
+			elif probs[j][lysogenic_id] > 0.95:
+				if data_well[j,1] > means[uninfected_id][1]:
+					lysogenic_dict[well] += [data_well[j,:]]
+				else:
+					uninfected_dict[well] += [data_well[j,:]]
+
+			elif probs[j][uninfected_id] > 0.95:
+				uninfected_dict[well] += [data_well[j,:]]
+
+
+		lytic_dict[well] = np.array(lytic_dict[well])
+		lysogenic_dict[well] = np.array(lysogenic_dict[well])
+		uninfected_dict[well] = np.array(uninfected_dict[well])
+
+	return lytic_dict, lysogenic_dict, uninfected_dict
+
+def plot_slip_wells_gmm(fitc_dict, cherry_dict, wells, titles, infected_cells = None, save_direc = '/home/vanvalen/keio_screen/scatter_plots/', plate_number = 9, save_fig = True, classification_wells = None):
+	sns.set_context('notebook', font_scale = 1.1)
+	sns.set_style('white')
+	sns.set_style('ticks')
+
+	sky_blue = (86./255., 180./255., 233./255.)
+	bluish_green = (0, 158./255., 115./255.)
+	reddish_purple = (204./255.,121./255.,167./255.)
+	black = (0.,0.,0.)
+
+	lytic_dict, lysogenic_dict, uninfected_dict = classify_infections_gmm(fitc_dict, cherry_dict, wells = wells, classification_wells = classification_wells)
+	fig, axes = plt.subplots(8,12, figsize = (4*12, 4*8))
+
+	for well, title in zip(wells, titles):
+ 
+		alphabet = ['A','B','C','D','E','F','G','H']
+		chars = list(well)
+		row = alphabet.index(chars[0])
+		if len(chars) == 2:
+			column = int(chars[1])-1
+		if len(chars) == 3:
+			column = int(chars[1] + chars[2])-1
+
+		if lytic_dict[well].shape[0] > 0:
+			axes[row,column].scatter(lytic_dict[well][:,0], lytic_dict[well][:,1], c = bluish_green, alpha = 0.75, edgecolors = 'none')
+
+		if lysogenic_dict[well].shape[0] > 0:
+			axes[row,column].scatter(lysogenic_dict[well][:,0], lysogenic_dict[well][:,1], c = reddish_purple, alpha = 0.75, edgecolors = 'none')
+
+		if uninfected_dict[well].shape[0] > 0:
+			axes[row,column].scatter(uninfected_dict[well][:,0], uninfected_dict[well][:,1], c = black, alpha = 0.75, edgecolors = 'none')
+
+		axes[row,column].set_xlabel('Lytic Reporter Intensity (au)')
+		axes[row,column].set_ylabel('Lysogenic Reporter Intensity (au)')
+		axes[row,column].set_xmargin(0.1)
+		axes[row,column].set_ymargin(0.1)
+		axes[row,column].autoscale(enable = True, axis = 'both', tight = True)
+		axes[row,column].set_title(title)
+		sns.despine()
+
+	plt.tight_layout()
+
+	if save_fig:
+		figure_name = os.path.join(save_direc, 'classified_infections_plate_' + str(plate_number) + '.pdf')
+		fig.savefig(figure_name, bbox_inches = 'tight')
+
+	return None
+
+def plot_slip_wells_lysis_posterior(fitc_dict, cherry_dict, wells, titles, infected_cells = None, save_direc = '/home/vanvalen/keio_screen/p_lysis_posteriors/', plate_number = 9, save_fig = True, classification_wells = None):
+	sns.set_context('notebook', font_scale = 1.1)
+	sns.set_style('white')
+	sns.set_style('ticks')
+
+	lytic_dict, lysogenic_dict, uninfected_dict = classify_infections_gmm(fitc_dict, cherry_dict, wells = wells, classification_wells = classification_wells)
+	fig, axes = plt.subplots(8,12, figsize = (4*12, 4*8))
+
+	for well, title in zip(wells, titles):
+		alphabet = ['A','B','C','D','E','F','G','H']
+		chars = list(well)
+		row = alphabet.index(chars[0])
+		if len(chars) == 2:
+			column = int(chars[1])-1
+		if len(chars) == 3:
+			column = int(chars[1] + chars[2])-1
+
+		if lytic_dict[well].shape[0] > 0:
+			N_lytic = lytic_dict[well].shape[0]
+		else:
+			N_lytic = 0	
+
+		if lysogenic_dict[well].shape[0] > 0:
+			N_lysogenic = lysogenic_dict[well].shape[0]
+		else:
+			N_lysogenic = 0	
+
+		x, posterior = compute_p_lysis_posterior(N_lytic, N_lysogenic)
+
+		axes[row, column].plot(x, posterior, color = 'k', linewidth = 2)
+		axes[row, column].set_xlim([0, 1])
+		axes[row, column].set_xlabel('Probability of lysis')
+		axes[row, column].set_ylabel('Probability density')
+		axes[row, column].set_title(title)
+
+		sns.despine()
+
+	plt.tight_layout()
+
+	if save_fig:
+		figure_name = os.path.join(save_direc, 'p_lysis_posterior_plate_' + str(plate_number) + '.pdf')
+		fig.savefig(figure_name, bbox_inches = 'tight')
+
+	return None
+
+def compute_inverse_MOI_posterior(N_infected, N_cells):
+    x = np.linspace(0,5,200)
+    gamma = np.float(N_cells)*np.log(1-1/np.float(N_cells))
+    posterior = np.abs(gamma*np.exp(gamma*x))*scipy.stats.beta.pdf(np.exp(gamma*x), 1+N_cells-N_infected, 1+N_infected)
+
+    return x, posterior
+
+def plot_slip_wells_MOI_posterior(fitc_dict, cherry_dict, wells, titles, infected_cells = None, save_direc = '/home/vanvalen/keio_screen/MOI_posteriors/', plate_number = 9, save_fig = True, classification_wells = None):
+	sns.set_context('notebook', font_scale = 1.1)
+	sns.set_style('white')
+	sns.set_style('ticks')
+
+	lytic_dict, lysogenic_dict, uninfected_dict = classify_infections_gmm(fitc_dict, cherry_dict, wells = wells, classification_wells = classification_wells)
+	fig, axes = plt.subplots(8,12, figsize = (4*12, 4*8))
+
+	for well, title in zip(wells, titles):
+		alphabet = ['A','B','C','D','E','F','G','H']
+		chars = list(well)
+		row = alphabet.index(chars[0])
+		if len(chars) == 2:
+			column = int(chars[1])-1
+		if len(chars) == 3:
+			column = int(chars[1] + chars[2])-1
+
+		if uninfected_dict[well].shape[0] > 0:
+			N_uninfected = uninfected_dict[well].shape[0]
+		else:
+			N_uninfected = 0
+
+		if lytic_dict[well].shape[0] > 0:
+			N_lytic = lytic_dict[well].shape[0]
+		else:
+			N_lytic = 0	
+
+		if lysogenic_dict[well].shape[0] > 0:
+			N_lysogenic = lysogenic_dict[well].shape[0]
+		else:
+			N_lysogenic = 0	
+
+		x, posterior = compute_inverse_MOI_posterior(len(fitc_dict[well]) - N_uninfected, len(fitc_dict[well]))
+
+		axes[row, column].plot(x, posterior, color = 'k', linewidth = 2)
+		axes[row, column].set_xlim([0, 5])
+		axes[row, column].set_xlabel('MOI')
+		axes[row, column].set_ylabel('Probability density')
+		axes[row, column].set_title(title)
+
+		sns.despine()
+
+	plt.tight_layout()
+
+	if save_fig:
+		figure_name = os.path.join(save_direc, 'MOI_posterior_plate_' + str(plate_number) + '.pdf')
+		fig.savefig(figure_name, bbox_inches = 'tight')
+
+	return None
 
 def fit_kde(fitc_dict, cherry_dict, well):
 	fitc_array = np.array(fitc_dict[well])
@@ -347,6 +591,11 @@ def compute_p_values(fitc_dict, cherry_dict, well, kernel, max_val = 1e6):
 	return np.array(p_values)
 
 def compute_p_lysis_posterior(N_lysis, N_lysogeny):
+    x = np.linspace(0,1,100)
+    posterior= scipy.stats.beta.pdf(x, 1+N_lysis, 1+N_lysogeny)
+    return x, posterior
+
+def compute_p_lysis_posterior_monte_carlo(N_lysis, N_lysogeny):
 	observed_lysis = np.ones(N_lysis)
 	observed_lysogeny = np.zeros(N_lysogeny)
 	observed_data = np.concatenate([observed_lysis, observed_lysogeny], axis = 1)
@@ -419,6 +668,13 @@ def cross_corr(im0, im1):
 	ir = abs(ifft2((f0 * f1.conjugate()) / (abs(f0) * abs(f1))))
 	t0, t1 = np.unravel_index(np.argmax(ir), shape)
 	return t0, t1
+
+def is_square(integer):
+	root = math.sqrt(integer)
+	if int(root + 0.5) ** 2 == integer:
+		return True
+	else:
+		return False
 
 def merge_images(img_list, h = None, v = None):
 	if h is None:
@@ -505,6 +761,10 @@ def merge_images_v2(img_list, h = None, v = None):
 			for col in cols:
 				for row in xrange(num-1):
 					h_temp, v_temp = cross_corr(col[row], col[row+1])
+					if h_temp == 0:
+						h_temp += 1
+					if v_temp == 0:
+						v_temp += 1
 					h += [h_temp]
 					v += [v_temp]
 
@@ -525,14 +785,23 @@ def merge_images_v2(img_list, h = None, v = None):
 		xmin = min(xmins)
 		ymin = min(ymins)
 
-		print xmins, ymins
-
 		merged_cols_v2 = [merged_col[0:xmin,0:ymin] for merged_col in merged_cols]
 		merged_cols = merged_cols_v2
 
 		if is_h_none is True:
 			for j in xrange(num-1):
-				h_temp, v_temp = cross_corr(merged_cols[j+1], merged_cols[j])
+				if merged_cols[j].shape[0] == 0 or merged_cols[j].shape[1] == 0:
+					h_temp = 1
+					v_temp = 1
+				if merged_cols[j+1].shape[0] == 0 or merged_cols[j+1].shape[1] == 0:
+					h_temp = 1
+					v_temp = 1
+				else:
+	 				h_temp, v_temp = cross_corr(merged_cols[j+1], merged_cols[j])
+				if h_temp == 0:
+					h_temp += 1
+				if v_temp == 0:
+					v_temp += 1
 				h +=[h_temp]
 				v +=[v_temp]
 
@@ -541,24 +810,10 @@ def merge_images_v2(img_list, h = None, v = None):
 		h_temp = h[num*(num-1):]
 		v_temp = v[num*(num-1):]
 
-		print h,v
-		print h_temp, v_temp
-		print merged.shape
 		for j in xrange(num-1):
-			print j
-			print merged_cols[j+1][np.sum(h_temp[0:j+1]):,:v_temp[j]].shape
-			print merged[:-h_temp[j],:].shape
 			merged = np.concatenate((merged_cols[j+1][np.sum(h_temp[0:j+1]):,:v_temp[j]],merged[:-h_temp[j],:]), axis = 1)
-			print merged.shape
 
 		return merged, h, v
 
 	else:
 		print "Not a square grid!"
-
-
-
-
-
-
-

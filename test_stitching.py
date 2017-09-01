@@ -55,17 +55,26 @@ def merge_images_v2(img_list, h = None, v = None):
 			for col in cols:
 				for row in xrange(num-1):
 					h_temp, v_temp = cross_corr(col[row], col[row+1])
+					if h_temp == 0:
+						h_temp += 1
+					if v_temp == 0:
+						v_temp += 1
 					h += [h_temp]
 					v += [v_temp]
 
 		# Merge rows using the offsets
 		merged_cols = []
+
+		print h,v
 		for j in xrange(num):
 			merged_col = cols[j][0]
 			h_temp = h[j*(num-1):j*(num-1) + num-1]
 			v_temp = v[j*(num-1):j*(num-1) + num-1]
 
 			for row in xrange(num-1):
+				print merged_col.shape
+				print v_temp[row]
+				print merged_col[:,v_temp[row]:].shape
 				merged_col = np.concatenate((cols[j][row+1][:-h_temp[row],:-np.sum(v_temp[0:row+1])], merged_col[:,v_temp[row]:]), axis = 0)
 			merged_cols += [merged_col]
 
@@ -82,7 +91,18 @@ def merge_images_v2(img_list, h = None, v = None):
 
 		if is_h_none is True:
 			for j in xrange(num-1):
-				h_temp, v_temp = cross_corr(merged_cols[j+1], merged_cols[j])
+				if merged_cols[j].shape[0] == 0 or merged_cols[j].shape[1] == 0:
+					h_temp = 1
+					v_temp = 1
+				if merged_cols[j+1].shape[0] == 0 or merged_cols[j+1].shape[1] == 0:
+					h_temp = 1
+					v_temp = 1
+				else:
+	 				h_temp, v_temp = cross_corr(merged_cols[j+1], merged_cols[j])
+				if h_temp == 0:
+					h_temp += 1
+				if v_temp == 0:
+					v_temp += 1
 				h +=[h_temp]
 				v +=[v_temp]
 
@@ -200,8 +220,8 @@ FITC_list = []
 cherry_list = []
 phase_list = []
 
-mask_direc_well = os.path.join(mask_direc, 'A6')
-data_direc_well = os.path.join(data_direc, 'A6')
+mask_direc_well = os.path.join(mask_direc, 'F12')
+data_direc_well = os.path.join(data_direc, 'F12')
 
 for pos in pos_list:
 	mask_name = os.path.join(mask_direc_well, 'feature_1_frame_' + str(pos) + '.tif')

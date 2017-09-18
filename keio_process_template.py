@@ -32,11 +32,24 @@ import pymc3 as pm
 # data_08152017 = [os.path.join(direc, 'keio3'), os.path.join(direc, 'keio5'), os.path.join(direc, 'keio7'), os.path.join(direc, 'keio11')]
 # plate_numbers = [1, 1, 9, 3, 5, 7, 11]
 
-direc = "/media/vanvalen/693d2597-3dbf-41bb-b919-341f714e3199/keio_screen/08.30.2017/"
-data_08302017 = [os.path.join(direc, 'keio43')]
-plate_numbers = [43]
+# direc = "/media/vanvalen/693d2597-3dbf-41bb-b919-341f714e3199/keio_screen/08.30.2017/"
+# data_08302017 = [os.path.join(direc, 'keio43')]
+# plate_numbers = [43]
 
-data = data_08302017
+# direc = "/media/vanvalen/693d2597-3dbf-41bb-b919-341f714e3199/keio_screen/09.04.2017/"
+# data_09042017_1 = [os.path.join(direc, 'keio17'), os.path.join(direc, 'keio19'), os.path.join(direc, 'keio21')]
+# plate_numbers_1 = [17, 19, 21]
+
+# direc = "/media/vanvalen/693d2597-3dbf-41bb-b919-341f714e3199/keio_screen/09.04.2017/"
+# data_09042017_2 = [os.path.join(direc, 'keio33')]
+plate_numbers_2 = [33] 
+
+
+direc = "/media/vanvalen/693d2597-3dbf-41bb-b919-341f714e3199/keio_screen/09.13.2017/"
+data_09132017 = [os.path.join(direc, 'keio49')]
+plate_numbers = [49] 
+data = data_09132017
+plate_numbers = plate_numbers
 
 for root_direc, plate_number in zip(data, plate_numbers):
 	print root_direc
@@ -62,7 +75,7 @@ for root_direc, plate_number in zip(data, plate_numbers):
 	# segment_SLIP(control_direc, control_mask_direc, alphabet = row_control, columns= col_control)
 
 	#Segment the infected wells
-	# segment_SLIP(data_direc, mask_direc, alphabet = row_data, columns= col_data)
+	# segment_SLIP(data_direc, mask_direc, alphabet = row_data, columns= col_data, replace = False)
 
 	# Quantify the data from the control wells
 	# mean_FITC_control, mean_cherry_control = analyze_plate(control_direc, control_mask_direc, pos_list = range(25), row_names = row_control, col_names = col_control)
@@ -72,11 +85,11 @@ for root_direc, plate_number in zip(data, plate_numbers):
 	# pickle.dump(mean_cherry_control, open(mean_cherry_control_name, 'wb'))
 
 	# Quantify the data from the infection wells
-	# mean_FITC, mean_cherry = analyze_plate(data_direc, mask_direc, pos_list = range(25), row_names = row_data, col_names = col_data)
-	# mean_FITC_name = os.path.join(root_direc, 'mean_FITC.pkl')
-	# mean_cherry_name = os.path.join(root_direc, 'mean_cherry.pkl')
-	# pickle.dump(mean_FITC, open(mean_FITC_name, 'wb'))
-	# pickle.dump(mean_cherry, open(mean_cherry_name, 'wb'))
+	mean_FITC, mean_cherry = analyze_plate(data_direc, mask_direc, pos_list = range(25), row_names = row_data, col_names = col_data)
+	mean_FITC_name = os.path.join(root_direc, 'mean_FITC.pkl')
+	mean_cherry_name = os.path.join(root_direc, 'mean_cherry.pkl')
+	pickle.dump(mean_FITC, open(mean_FITC_name, 'wb'))
+	pickle.dump(mean_cherry, open(mean_cherry_name, 'wb'))
 
 	#Load saved data
 	mean_FITC_name = os.path.join(root_direc, 'mean_FITC.pkl')
@@ -101,6 +114,6 @@ for root_direc, plate_number in zip(data, plate_numbers):
 			titles += [pos_to_strain(keio_names_array, plate_number, well)]
 
 	plot_slip_wells(mean_FITC, mean_cherry, wells = wells, titles = titles, plate_number = plate_number, save_fig = True)
-	plot_slip_wells_gmm(mean_FITC, mean_cherry, wells = wells, titles = titles, plate_number = plate_number, classification_wells = ['F7', 'F8', 'F9'])
-	plot_slip_wells_lysis_posterior(mean_FITC, mean_cherry, wells = wells, titles = titles, plate_number = plate_number, classification_wells = ['F7', 'F8', 'F9'])
-	plot_slip_wells_MOI_posterior(mean_FITC, mean_cherry, wells = wells, titles = titles, plate_number = plate_number, classification_wells = ['F7', 'F8', 'F9'])
+	# plot_slip_wells_gmm(mean_FITC, mean_cherry, wells = wells, titles = titles, plate_number = plate_number)
+	# plot_slip_wells_lysis_posterior(mean_FITC, mean_cherry, wells = wells, titles = titles, plate_number = plate_number, classification_wells = ['F7', 'F8', 'F9'])
+	# plot_slip_wells_MOI_posterior(mean_FITC, mean_cherry, wells = wells, titles = titles, plate_number = plate_number, classification_wells = ['F7', 'F8', 'F9'])

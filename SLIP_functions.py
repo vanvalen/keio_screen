@@ -6,6 +6,7 @@ from cnn_functions import nikon_getfiles, get_image, run_models_on_directory, ge
 from model_zoo import sparse_bn_feature_net_61x61 as fn 
 
 import os
+import fnmatch
 import numpy as np
 from skimage.io import imread
 from scipy.stats import mode
@@ -20,7 +21,7 @@ import pymc3 as pm
 import math
 from sklearn import mixture
 
-def segment_SLIP(data_direc, mask_direc, alphabet = ['A','B','C','D','E','F','G','H'], columns = range(1,13)):
+def segment_SLIP(data_direc, mask_direc, alphabet = ['A','B','C','D','E','F','G','H'], columns = range(1,13), replace = True, pos_list = range(25)):
 
 	print alphabet, columns
 
@@ -37,8 +38,20 @@ def segment_SLIP(data_direc, mask_direc, alphabet = ['A','B','C','D','E','F','G'
 			except:
 				os.mkdir(current_mask_direc)
 
-			segment_SLIP_plate(current_data_direc, current_mask_direc)
-			
+			file_list = os.listdir(current_mask_direc)
+			file_list = fnmatch.filter(file_list, 'feature*')
+			number_of_files_if_finished = 3 * len(pos_list)
+
+			if replace is True:
+				segment_SLIP_plate(current_data_direc, current_mask_direc)
+
+			else:
+				if len(file_list) == number_of_files_if_finished:
+					print "Well " + pos + " already segmented ... skipping ..."
+
+				else:
+					segment_SLIP_plate(current_data_direc, current_mask_direc)
+				
 def segment_SLIP_plate(data_direc, mask_direc):
 	data_location = data_direc
 	phase_location = mask_direc
@@ -363,6 +376,7 @@ def classify_infections_gmm(fitc_dict, cherry_dict, wells, classification_wells 
 	lytic_id = np.argmax(fitc_means)
 	lysogenic_id = np.argmax(cherry_means)
 
+	print fitc_means, cherry_means	
 	index_list.remove(lytic_id)
 	index_list.remove(lysogenic_id)
 	uninfected_id = index_list[0]
